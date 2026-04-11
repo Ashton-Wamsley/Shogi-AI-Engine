@@ -92,7 +92,149 @@ class Board:
         return not (has_sente_king and has_gote_king)
     
 class MoveGenerator:
+    def generate_moves(self, board: Board):
+        moves = []
+        side = board.to_move
+
+        for row in range(9):
+            for column in range(9):
+                piece = board.grid[row][column]
+                if piece is None:
+                    continue
+                owner, code = piece
+                if owner != side:
+                    continue
+                moves.extend(self._moves_for_piece(board, row, column, owner, code))
+
+        for piece_code in set(board.hands[side]):
+            for row in range(9):
+                for column in range(9):
+                    if board.grid[row][column] is None:
+                        moves.append(Move(None, (row, column), piece_code, drop=True))
+
+        return moves
     
+    def _moves_for_piece(self, board, row, column, owner, code):
+        base = code[1:] if code.startswith('+') else code
+        promoted = code.startswith('+')
+        moves = []
 
+        forward = -1 if owner == 1 else 1
 
+        def add_step(dr, dc):
+            nr, nc = row + dr, column + dc
+            if not board.inside(nr, nc):
+                return
+            target = board.grid[nr][nc]
+            if target is None or target[0] != owner:
+                promote = self._should_offer_promotion(board, owner, base, row, nr)
+                if promote:
+                    moves.append(Move((row, column), (nr, nc), code, promote=True))
+                moves.append(Move((row, column), (nr, nc), code, promote=False))
 
+        def add_sliding(drs, dcs):
+            for dr, dc in zip(drs, dcs):
+                nr, nc = row + dr, column + dc
+                while board.inside(nr, nc):
+                    target = board.grid[nr][nc]
+                    if target is None:
+                        promote = self._should_offer_promotion(board, owner, base, row, nr)
+                        if promote:
+                            moves.append(Move((row, column), (nr, nc), code, promote=True))
+                        moves.append(Move((row, column), (nr, nc), code, promote=False))
+                    else:
+                        if target[0] != owner:
+                            promote = self._should_offer_promotion(board, owner, base, row, nr)
+                            if promote:
+                                moves.append(Move((row, column), (nr, nc), code, promote=True))
+                            moves.append(Move((row, column), (nr, nc), code, promote=False))
+                        break
+                    nr += dr
+                    nc += dc
+
+        if base == 'P':
+            if not promoted:
+                add_step(forward, 0)
+            else:
+                moves.extend(self._gold_moves(board, row, column, owner, code))
+        elif base == 'L':
+            if not promoted:
+                add_sliding([forward]*8, [0]*8)
+            else:
+                moves.extend(self._gold_moves(board, row, column, owner, code))
+        elif base == 'N':
+            if not promoted:
+                nr = row + 2*forward
+                for dc in [-1, 1]:
+                    nc = column + dc
+                    if board.inside(nr, nc):
+                        target = board.grid[nr][nc]
+                        if target is None or target[0] != owner:
+                            promote = self._should_offer_promotion(board, owner, base, row, nr)
+                            if promote:
+                                moves.append(Move((row, column), (nr, nc), code, promote=True))
+                            moves.append(Move((row, column), (nr, nc), code, promote=False))
+            else:
+                moves.extend(self._gold_moves(board, row, column, owner, code))
+        elif base == 'S':
+            if not promoted:
+                for dr, dc in [(forward, -1), (forward, 0), (forward, 1),
+                               (-forward, -1), (-forward, 1)]:
+                    add_step(dr, dc)
+            else:
+                moves.extend(self._gold_moves(board, row, column, owner, code))
+        elif base == 'G':
+            moves.extend(self._gold_moves(board, row, column, owner, code))
+        elif base == 'K':
+            for dr in [-1, 0, 1]:
+                for dc in [-1, 0, 1]:
+                    if dr == 0 and dc == 0:
+                        continue
+                    add_step(dr, dc)
+        elif base == 'B':
+            if not promoted:
+                add_sliding([1, 1, -1, -1], [1, -1, 1, -1])
+            else:
+                add_sliding([1, 1, -1, -1], [1, -1, 1, -1])
+                for dr, dc in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                    add_step(dr, dc)
+        elif base == 'R':
+            if not promoted:
+                add_sliding([1, -1, 0, 0], [0, 0, 1, -1])
+            else:
+                add_sliding([1, -1, 0, 0], [0, 0, 1, -1])
+                for dr, dc in [(1, 1), (1, -1), (-1, 1), (-1, -1)]:
+                    add_step(dr, dc)
+
+        return moves
+
+    def _gold_moves(self, board, row, column, owner, code):
+        moves = []
+        forward = -1 if owner == 1 else 1
+
+        def add_step(dr, dc):
+            nr, nc = row + dr, column + dc
+            if not board.inside(nr, nc):
+                return
+            target = board.grid[nr][nc]
+            if target is None or target[0] != owner:
+                moves.append(Move((row, column), (nr, nc), code, promote=False))
+
+        for dr, dc in [
+            (forward, -1), (forward, 0), (forward, 1),
+            (0, -1), (0, 1),
+            (-forward, 0)
+        ]:
+            add_step(dr, dc)
+        return moves
+
+    def _should_offer_promotion(self, board, owner, base, from_row, to_row):
+        if base in ['K', 'G']:
+            return False
+        if owner == 1:
+            return from_row <= 2 or to_row <= 2
+        else:
+            return from_row >= 6 or to_row >= 6
+        
+class Evaluator:
+    
