@@ -255,4 +255,66 @@ class Evaluator:
         return score if board.to_move == 1 else -score
     
 class MinimaxEngine:
-    
+    def __init__(self, move_gen, evaluator, max_depth=2):
+        self.move_gen = move_gen
+        self.evaluator = evaluator
+        self.max_depth = max_depth
+
+    def choose_move(self, board: Board):
+        best_move = None
+        alpha, beta = -math.inf, math.inf
+        best_score = -math.inf
+
+        moves = self.move_gen.generate_moves(board)
+        if not moves:
+            return None, self.evaluator.evaluate(board)
+
+        for move in moves:
+            new_board = board.clone()
+            new_board.apply_move(move)
+            score = -self._search(new_board, self.max_depth - 1, -beta, -alpha)
+            if score > best_score:
+                best_score = score
+                best_move = move
+            alpha = max(alpha, score)
+        return best_move, best_score
+
+    def _search(self, board: Board, depth, alpha, beta):
+        if depth == 0 or board.is_terminal():
+            return self.evaluator.evaluate(board)
+
+        moves = self.move_gen.generate_moves(board)
+        if not moves:
+            return self.evaluator.evaluate(board)
+
+        for move in moves:
+            new_board = board.clone()
+            new_board.apply_move(move)
+            score = -self._search(new_board, depth - 1, -beta, -alpha)
+            if score >= beta:
+                return score
+            alpha = max(alpha, score)
+        return alpha
+
+class Game:
+    def __init__(self, board, move_gen, evaluator, engine):
+        self.board = board
+        self.move_gen = move_gen
+        self.evaluator = evaluator
+        self.engine = engine
+
+    def handle_human_move(self, from_tile, to_tile):
+        moves = self.move_gen.generate_moves(self.board)
+        for m in moves:
+            if not m.drop and m.from_time == from_tile and m.to_tile == to_tile:
+                self.board.apply_move(m)
+                return
+
+    def handle_ai_move(self):
+        if self.board.is_terminal():
+            print("Game over.")
+            return
+        move, score = self.engine.choose_move(self.board)
+        if move:
+            self.board.apply_move(move)
+            print("AI move:", move, "eval:", score)
