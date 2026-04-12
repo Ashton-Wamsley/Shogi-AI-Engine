@@ -237,4 +237,22 @@ class MoveGenerator:
             return from_row >= 6 or to_row >= 6
         
 class Evaluator:
+    def evaluate(self, board: Board):
+        score = 0
+        for row in range(9):
+            for column in range(9):
+                piece = board.grid[row][column]
+                if piece is None:
+                    continue
+                owner, code = piece
+                val = PIECE_VALUES[code]
+                score += val if owner == 1 else -val
+
+        for owner in [1, -1]:
+            for code in board.hands[owner]:
+                val = PIECE_VALUES[code]
+                score += val if owner == 1 else -val
+        return score if board.to_move == 1 else -score
+    
+class MinimaxEngine:
     
