@@ -4,9 +4,10 @@ from Shogi_UI import ShogiUI
 
 def main():
     board = Board()
+    board.initial_setup()
     move_gen = MoveGenerator()
     evaluator = Evaluator()
-    engine = MinimaxEngine(move_gen, evaluator, max_depth=2)
+    engine = MinimaxEngine(move_gen, evaluator, max_depth=3)
 
     game = Game(board, move_gen, evaluator, engine)
 

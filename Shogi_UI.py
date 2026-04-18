@@ -55,7 +55,7 @@ class ShogiUI:
             if owner != 1:
                 return
             self.selected = (row, column)
-            self.highlight_square(row, column)
+            self.highlight_tile(row, column)
         else:
             from_tile = self.selected
             to_tile = (row, column)

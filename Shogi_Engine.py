@@ -75,12 +75,43 @@ class Board:
 
         self.to_move *= -1
 
+    def find_king(self, owner):
+        for row in range(9):
+            for column in range(9):
+                p = self.grid[row][column]
+                if p is None:
+                    continue
+                o, code = p
+                if o == owner and code == 'K':
+                    return (row, column)
+        return None
+    
+    def is_in_check(self, owner, move_gen):
+        king_pos = self.find_king(owner)
+        if king_pos is None:
+            return True
+        enemy = -owner
+
+        for row in range(9):
+            for column in range(9):
+                p = self.grid[row][column]
+                if p is None:
+                    continue
+                o, code = p
+                if o != enemy:
+                    continue
+                moves = move_gen._moves_for_piece(self, row, column, o, code)
+                for m in moves:
+                    if m.to_tile == king_pos:
+                        return True
+        return False
+
     def is_terminal(self):
         has_sente_king = False
         has_gote_king = False
         for row in range(9):
             for column in range(9):
-                p = self.grid[r][c]
+                p = self.grid[row][column]
                 if p is None:
                     continue
                 owner, code = p
@@ -92,7 +123,7 @@ class Board:
         return not (has_sente_king and has_gote_king)
     
 class MoveGenerator:
-    def generate_moves(self, board: Board):
+    def generate_moves(self, board: Board, legal_only=True):
         moves = []
         side = board.to_move
 
@@ -107,12 +138,43 @@ class MoveGenerator:
                 moves.extend(self._moves_for_piece(board, row, column, owner, code))
 
         for piece_code in set(board.hands[side]):
-            for row in range(9):
-                for column in range(9):
-                    if board.grid[row][column] is None:
-                        moves.append(Move(None, (row, column), piece_code, drop=True))
+            count = board.hands[side].count(piece_code)
+            for _ in range(count):
+                for row in range(9):
+                    for column in range(9):
+                        if board.grid[row][column] is None:
+                            if self._legal_drop(board, side, piece_code, row, column):
+                                moves.append(Move(None, (row, column), piece_code, drop=True))
 
-        return moves
+        if not legal_only:
+            return moves
+        
+        legal_moves = []
+        for m in moves:
+            new_b = board.clone()
+            new_b.apply_move(m)
+            if not new_b.is_in_check(-new_b.to_move, self):
+                legal_moves.append(m)
+        return legal_moves
+    
+    def _legal_drop(self, board: Board, owner, code, row, column):
+        if code == 'P':
+            for r in range(9):
+                p = board.grid[r][column]
+                if p is None:
+                    continue
+                o, c = p
+                if o == owner and c == 'P':
+                    return False
+            if (owner == 1 and row == 0) or (owner == -1 and row == 8):
+                return False
+        if code == 'L':
+            if (owner == 1 and row == 0) or (owner == -1 and row == 8):
+                return False
+        if code == 'N':
+            if (owner == 1 and row <= 1) or (owner == -1 and row >= 7):
+                return False
+        return True
     
     def _moves_for_piece(self, board, row, column, owner, code):
         base = code[1:] if code.startswith('+') else code
@@ -228,13 +290,26 @@ class MoveGenerator:
             add_step(dr, dc)
         return moves
 
-    def _should_offer_promotion(self, board, owner, base, from_row, to_row):
+    def _promotion_status(self, owner, base, from_row, to_row):
         if base in ['K', 'G']:
-            return False
+            return (False, False)
         if owner == 1:
-            return from_row <= 2 or to_row <= 2
+            in_zone_from = from_row <= 2
+            in_zone_to = to_row <= 2
         else:
-            return from_row >= 6 or to_row >= 6
+            in_zone_from = from_row >= 6
+            in_zone_to = to_row >= 6
+        can_promote = in_zone_from or in_zone_to
+
+        must_promote = False
+        if base == 'P' or base == 'L':
+            if (owner == 1 and to_row == 0) or (owner == -1 and to_row == 8):
+                must_promote = True
+        if base == 'N':
+            if (owner == 1 and to_row <= 1) or (owner == -1 and to_row >= 7):
+                must_promote = True
+
+        return (must_promote, can_promote)
         
 class Evaluator:
     def evaluate(self, board: Board):
@@ -252,10 +327,10 @@ class Evaluator:
             for code in board.hands[owner]:
                 val = PIECE_VALUES[code]
                 score += val if owner == 1 else -val
-        return score if board.to_move == 1 else -score
+        return score
     
 class MinimaxEngine:
-    def __init__(self, move_gen, evaluator, max_depth=2):
+    def __init__(self, move_gen, evaluator, max_depth=3):
         self.move_gen = move_gen
         self.evaluator = evaluator
         self.max_depth = max_depth
@@ -268,6 +343,17 @@ class MinimaxEngine:
         moves = self.move_gen.generate_moves(board)
         if not moves:
             return None, self.evaluator.evaluate(board)
+
+        def move_value(m):
+            fr, fc = m.from_tile if not m.drop else (None, None)
+            tr, tc = m.to_tile
+            target = board.grid[tr][tc]
+            if target is None:
+                return 0
+            _, code = target
+            return PIECE_VALUES.get(code, 0)
+
+        moves.sort(key=move_value, reverse=True)
 
         for move in moves:
             new_board = board.clone()
@@ -287,6 +373,17 @@ class MinimaxEngine:
         if not moves:
             return self.evaluator.evaluate(board)
 
+        def move_value(m):
+            fr, fc = m.from_tile if not m.drop else (None, None)
+            tr, tc = m.to_tile
+            target = board.grid[tr][tc]
+            if target is None:
+                return 0
+            _, code = target
+            return PIECE_VALUES.get(code, 0)
+
+        moves.sort(key=move_value, reverse=True)
+
         for move in moves:
             new_board = board.clone()
             new_board.apply_move(move)
@@ -303,12 +400,23 @@ class Game:
         self.evaluator = evaluator
         self.engine = engine
 
-    def handle_human_move(self, from_tile, to_tile):
+    def handle_human_move(self, from_tile, to_tile, promote=False, drop_piece=None):
         moves = self.move_gen.generate_moves(self.board)
-        for m in moves:
-            if not m.drop and m.from_time == from_tile and m.to_tile == to_tile:
-                self.board.apply_move(m)
-                return
+        chosen = None
+        if drop_piece is not None:
+            for m in moves:
+                if m.drop and m.piece == drop_piece and m.to_tile == to_tile:
+                    chosen = m
+                    break
+        else:
+            for m in moves:
+                if not m.drop and m.from_tile == from_tile and m.to_tile == to_tile:
+                    if m.promote == promote or (not m.promote and not promote):
+                        chosen = m
+                        break
+
+        if chosen:
+            self.board.apply_move(chosen)
 
     def handle_ai_move(self):
         if self.board.is_terminal():
