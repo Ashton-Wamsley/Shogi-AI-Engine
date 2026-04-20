@@ -467,6 +467,18 @@ class Game:
         self.evaluator = evaluator
         self.engine = engine
 
+    def get_game_state(self):
+        side = self.board.to_move
+        in_check = self.board.is_in_check(side, self.move_gen)
+        moves = self.move_gen.generate_moves(self.board)
+        if not moves and in_check:
+            return "checkmate"
+        if not moves and not in_check:
+            return "stalemate"
+        if in_check:
+            return "check"
+        return "normal"
+
     def handle_human_move(self, from_tile, to_tile, promote=False, drop_piece=None):
         moves = self.move_gen.generate_moves(self.board)
         chosen = None
@@ -487,9 +499,30 @@ class Game:
 
     def handle_ai_move(self):
         if self.board.is_terminal():
-            print("Game over.")
-            return
+            return "Game over (king captured)."
         move, score = self.engine.choose_move(self.board)
-        if move:
-            self.board.apply_move(move)
-            print("AI move:", move, "eval:", score)
+        if not move:
+            return "AI has no legal moves."
+
+        self.board.apply_move(move)
+
+        if move.drop:
+            action = f"AI drops {move.piece} at {move.to_tile}"
+        else:
+            action = f"AI moves {move.piece} from {move.from_tile} to {move.to_tile}"
+            if move.promote:
+                action += " and promotes"
+
+        eval_str = f"Evaluation: {score:+.1f}"
+
+        state = self.get_game_state()
+        if state == "checkmate":
+            status = "Checkmate against you."
+        elif state == "stalemate":
+            status = "Stalemate."
+        elif state == "check":
+            status = "You are in check."
+        else:
+            status = "Position is ongoing."
+
+        return f"{action}. {eval_str}. {status}"
