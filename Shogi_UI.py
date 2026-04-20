@@ -1,10 +1,10 @@
 import tkinter as tk
 from Shogi_Engine import Game
 
-TILE = 60
+TILE = 60               #Board Size
 BOARD_SIZE = 9
 
-class ShogiUI:
+class ShogiUI:          #Shows board, side panel, actions, and pieces
     def __init__(self, root, game: Game):
         self.root = root
         self.game = game

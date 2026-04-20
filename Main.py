@@ -2,7 +2,7 @@ import tkinter as tk
 from Shogi_Engine import Board, MoveGenerator, Evaluator, MinimaxEngine, Game
 from Shogi_UI import ShogiUI
 
-def main():
+def main():         #Runs game
     board = Board()
     board.initial_setup()
     move_gen = MoveGenerator()

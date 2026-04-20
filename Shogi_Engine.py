@@ -4,21 +4,21 @@ import copy
 
 @dataclass(frozen=True)
 
-class Move:
+class Move:                         #Moves the AI and player can make
     from_tile : tuple | None
     to_tile : tuple
     piece : str
     promote : bool = False
     drop : bool = False
 
-PIECE_VALUES = {
+PIECE_VALUES = {                    
     'P': 1,  'L': 3,  'N': 3,  'S': 4,  'G': 5,
     'B': 8,  'R': 10,
     '+P': 6, '+L': 6, '+N': 6, '+S': 6, '+B': 11, '+R': 13,
     'K': 1000
 }
 
-class Board:
+class Board:                        #Initial Board and all actions that change or affect board state
     def __init__(self):
         self.grid = [[None for _ in range(9)] for _ in range(9)]
         self.to_move = 1 
@@ -132,7 +132,7 @@ class Board:
                         has_gote_king = True
         return not (has_sente_king and has_gote_king)
     
-class MoveGenerator:
+class MoveGenerator:                #Legal Moves and piece movement
     def generate_moves(self, board: Board, legal_only=True):
         moves = []
         side = board.to_move
@@ -356,7 +356,7 @@ class MoveGenerator:
 
         return moves
         
-class Evaluator:
+class Evaluator:                    #Movement heuristics/evaluation
     def evaluate(self, board: Board):
         score = 0
 
@@ -395,7 +395,7 @@ class Evaluator:
 
         return score
     
-class MinimaxEngine:
+class MinimaxEngine:                #AI decision making Minimax/Alpha-Beta Pruning
     def __init__(self, move_gen, evaluator, max_depth=3):
         self.move_gen = move_gen
         self.evaluator = evaluator
@@ -460,7 +460,7 @@ class MinimaxEngine:
             alpha = max(alpha, score)
         return alpha
 
-class Game:
+class Game:                         #Handles games turns and text displayed based on games current state
     def __init__(self, board, move_gen, evaluator, engine):
         self.board = board
         self.move_gen = move_gen
